@@ -12,6 +12,7 @@ omnizart.base.BaseTranscription: The base class of all transcription/application
 import os
 from os.path import join as jpath
 from datetime import datetime
+from typing import List
 
 import numpy as np
 from scipy.io.wavfile import write as wavwrite
@@ -62,7 +63,7 @@ class VocalContourTranscription(BaseTranscription):
 
         See Also
         --------
-        omnizart.cli.vocal_contour.transcribe: The coressponding command line entry.
+        omnizart.cli.vocal_contour.transcribe: The corresponding command line entry.
         """
         if not os.path.isfile(input_audio):
             raise FileNotFoundError(f"The given audio path does not exist. Path: {input_audio}")
@@ -79,10 +80,26 @@ class VocalContourTranscription(BaseTranscription):
         )
 
         logger.info("Predicting...")
-        f0 = inference(feature[:, :, 0], model, timestep=model_settings.training.timesteps)
-        agg_f0 = aggregate_f0_info(f0, t_unit=model_settings.feature.hop_size)
+        """
+        f0 is a one-dimensional numpy array
+        It contains the fundamental frequency on frame level
+        """
+        f0: np.ndarray = inference(feature[:, :, 0], model, timestep=model_settings.training.timesteps)
+        """
+        aggregated frequency
+        This 'smooths' the prediction. 
+        If the difference between two subsequent predictions is smaller than given epsilon. 
+        Or if the prediction generally is smaller than given epsilon. 
+        """
+        agg_f0: List[dict] = aggregate_f0_info(f0, t_unit=model_settings.feature.hop_size)
 
         timestamp = np.arange(len(f0)) * model_settings.feature.hop_size
+
+        """
+        sonify.pitch_contour uses an interpolator to create the wav file. This is similar to the agg_f0 function above
+        interpolation tries to estimate the values between known datapoints
+        This tries to mimic the "singing" nature of the vocal parts
+        """
         wav = sonify.pitch_contour(
             timestamp, f0, model_settings.feature.sampling_rate, amplitudes=0.5 * np.ones(len(f0))
         )
