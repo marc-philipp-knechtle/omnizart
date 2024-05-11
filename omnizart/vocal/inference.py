@@ -234,7 +234,7 @@ def infer_midi(interval, agg_f0, t_unit=0.02):
         The return value of ``infer_interval`` function. List of onset/offset pairs in seconds.
     agg_f0: list[dict]
         Aggregated f0 information. Each elements in the list should contain three columns:
-        *start_time*, *end_time*, and *frequency*. Time units should be in seonds, and pitch
+        *start_time*, *end_time*, and *frequency*. Time units should be in seconds, and pitch
         should be Hz.
     t_unit: float
         Time unit of each frame.
