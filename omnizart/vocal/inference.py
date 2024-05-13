@@ -6,7 +6,6 @@ from scipy.stats import norm
 
 from omnizart.utils import get_logger
 
-
 logger = get_logger("Vocal Inference")
 
 
@@ -18,7 +17,7 @@ def _conv(seq, window):
     for val in seq[:half_len]:
         container.append(val)
     for idx in range(half_len, end_idx):
-        container.append(np.dot(seq[idx-half_len:idx+half_len+1], window) / total)  # noqa: E226
+        container.append(np.dot(seq[idx - half_len:idx + half_len + 1], window) / total)  # noqa: E226
     for val in seq[-half_len:]:
         container.append(val)
     return np.array(container)
@@ -62,7 +61,7 @@ def infer_interval_original(pred, ctx_len=2, threshold=0.5, t_unit=0.02):
         Raw prediction array.
     ctx_len: int
         Context length for determing peaks.
-    threhsold: float
+    threshold: float
         Threshold for prediction values to be taken as true positive.
     t_unit: float
         Time unit of each frame.
@@ -129,7 +128,7 @@ def infer_interval(pred, ctx_len=2, threshold=0.5, min_dura=0.1, t_unit=0.02):
         Raw prediction array.
     ctx_len: int
         Context length for determing peaks.
-    threhsold: float
+    threshold: float
         Threshold for prediction values to be taken as true positive.
     min_dura: float
         Minimum duration for a note, in seconds.
@@ -234,6 +233,7 @@ def infer_midi(interval: List[Tuple[float, float]], agg_f0, t_unit=0.02):
     ----------
     interval: list[tuple[float, float]]
         The return value of ``infer_interval`` function. List of onset/offset pairs in seconds.
+        See infer_interval methods in this file.
     agg_f0: list[dict]
         Aggregated f0 information. Each elements in the list should contain three columns:
         *start_time*, *end_time*, and *frequency*. Time units should be in seconds, and pitch
@@ -249,7 +249,11 @@ def infer_midi(interval: List[Tuple[float, float]], agg_f0, t_unit=0.02):
     fs = round(1 / t_unit)
     max_secs = max(record["end_time"] for record in agg_f0)
     total_frames = round(max_secs) * fs + 10
-    flat_f0 = np.zeros(total_frames)
+    """
+    This array contains the ferquency for each frame
+    """
+    flat_f0: np.ndarray = np.zeros(total_frames)
+    # multiply by time unit of each frame
     for record in agg_f0:
         start_idx = int(round(record["start_time"] * fs))
         end_idx = int(round(record["end_time"] * fs))
@@ -257,16 +261,23 @@ def infer_midi(interval: List[Tuple[float, float]], agg_f0, t_unit=0.02):
 
     notes = []
     drum_notes = []
-    skip_num = 0
+    skip_num = 0  # This is just used for logging purposes
     for onset, offset in interval:
         start_idx = int(round(onset * fs))
         end_idx = int(round(offset * fs))
-        freqs = flat_f0[start_idx:end_idx]
+        """
+        my assumption is that this is an array of all frequencies occurring in between the two indices 
+        """
+        freqs: np.ndarray = flat_f0[start_idx:end_idx]
         avg_hz = _conclude_freq(freqs)
         if avg_hz < 1e-6:
-            skip_num += 1
-            note = pretty_midi.Note(velocity=80, pitch=77, start=onset, end=offset)
-            drum_notes.append(note)
+            """
+            This was previously present and added a drum note whenever the frequency was below given threshold.
+            Since the Schubert Winterreise Dataset does not contain any drum events, this is skipped here.
+            """
+            # skip_num += 1
+            # note = pretty_midi.Note(velocity=80, pitch=77, start=onset, end=offset)
+            # drum_notes.append(note)
             continue
 
         note_num = int(round(pretty_midi.hz_to_note_number(avg_hz)))
@@ -278,13 +289,15 @@ def infer_midi(interval: List[Tuple[float, float]], agg_f0, t_unit=0.02):
         notes.append(note)
 
     if skip_num > 0:
-        logger.warning("A total of %d notes are skipped due to lack of corressponding pitch information.", skip_num)
+        logger.warning("A total of %d notes are skipped due to lack of corresponding pitch information.", skip_num)
 
     inst = pretty_midi.Instrument(program=0)
     inst.notes += notes
-    drum_inst = pretty_midi.Instrument(program=1, is_drum=True, name="Missing Notes")
-    drum_inst.notes += drum_notes
+    # Commented all drum instrument because of description above
+    # drum_inst = pretty_midi.Instrument(program=1, is_drum=True, name="Missing Notes")
+    # drum_inst.notes += drum_notes
     midi = pretty_midi.PrettyMIDI()
     midi.instruments.append(inst)
-    midi.instruments.append(drum_inst)
+    # Commented all drum instrument information because of description above
+    # midi.instruments.append(drum_inst)
     return midi
