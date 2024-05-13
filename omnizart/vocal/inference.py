@@ -1,3 +1,5 @@
+from typing import List, Tuple
+
 import numpy as np
 import pretty_midi
 from scipy.stats import norm
@@ -225,7 +227,7 @@ def _conclude_freq(freqs, std=2, min_count=3):
     return avg_freq / total_weight if count >= min_count else 0
 
 
-def infer_midi(interval, agg_f0, t_unit=0.02):
+def infer_midi(interval: List[Tuple[float, float]], agg_f0, t_unit=0.02):
     """Inference the given interval and aggregated F0 to MIDI file.
 
     Parameters
