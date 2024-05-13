@@ -338,7 +338,7 @@ def get_filename(path):
     return os.path.splitext(os.path.basename(abspath))[0]
 
 
-def aggregate_f0_info(pred, t_unit):
+def aggregate_f0_info(pred: np.ndarray, t_unit: float):
     """Aggregation function of F0 contour.
 
     Aggregate the repeated frequencies in continuous frames into higher-level
