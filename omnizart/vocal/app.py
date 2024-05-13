@@ -5,9 +5,11 @@ import subprocess
 from os.path import join as jpath
 from collections import OrderedDict
 from datetime import datetime
+from typing import List, Tuple
 
 import h5py
 import numpy as np
+import pretty_midi
 import tensorflow as tf
 from spleeter.separator import Separator
 from spleeter.utils.logging import logger as sp_logger
@@ -26,7 +28,6 @@ from omnizart.vocal.inference import infer_interval, infer_midi
 from omnizart.train import get_train_val_feat_file_list
 from omnizart.models.pyramid_net import PyramidNet
 
-
 logger = get_logger("Vocal Transcription")
 vcapp = LazyLoader("vcapp", globals(), "omnizart.vocal_contour")
 
@@ -41,13 +42,14 @@ class VocalTranscription(BaseTranscription):
 
     This application implements the training procedure in a semi-supervised way.
     """
+
     def __init__(self, conf_path=None):
         super().__init__(VocalSettings, conf_path=conf_path)
 
         # Disable logging information of Spleeter
         sp_logger.setLevel(40)  # logging.ERROR
 
-    def transcribe(self, input_audio, model_path=None, output="./"):
+    def transcribe(self, input_audio: str, model_path=None, output="./"):
         """Transcribe vocal notes in the audio.
 
         This function transcribes onset, offset, and pitch of the vocal in the audio.
@@ -116,7 +118,7 @@ class VocalTranscription(BaseTranscription):
         pred = predict(feature, model)
 
         logger.info("Infering notes...")
-        interval = infer_interval(
+        interval: List[Tuple[float, float]] = infer_interval(
             pred,
             ctx_len=model_settings.inference.context_length,
             threshold=model_settings.inference.threshold,
@@ -125,10 +127,13 @@ class VocalTranscription(BaseTranscription):
         )
 
         logger.info("Extracting pitch contour")
-        agg_f0 = vcapp.app.transcribe(input_audio, model_path=model_settings.inference.pitch_model, output=output)
+        # Each dict contains start, end and frequency
+        # Start and End are in seconds, time units
+        agg_f0: List[dict] = vcapp.app.transcribe(input_audio, model_path=model_settings.inference.pitch_model,
+                                                  output=output)  # output required to write wav and csv
 
         logger.info("Inferencing MIDI...")
-        midi = infer_midi(interval, agg_f0, t_unit=model_settings.feature.hop_size)
+        midi: pretty_midi.PrettyMIDI = infer_midi(interval, agg_f0, t_unit=model_settings.feature.hop_size)
 
         self._output_midi(output=output, input_audio=input_audio, midi=midi)
         logger.info("Transcription finished")
@@ -225,7 +230,7 @@ class VocalTranscription(BaseTranscription):
         logger.info("All done")
 
     def train(
-        self, feature_folder, semi_feature_folder=None, model_name=None, input_model_path=None, vocal_settings=None
+            self, feature_folder, semi_feature_folder=None, model_name=None, input_model_path=None, vocal_settings=None
     ):
         """Model training.
 
@@ -259,27 +264,27 @@ class VocalTranscription(BaseTranscription):
         train_feat_files, val_feat_files = get_train_val_feat_file_list(feature_folder, split=split)
 
         output_types = (tf.float32, tf.float32)
-        output_shapes = ((settings.training.context_length*2 + 1, 174, 9), (19, 6))  # noqa: E226
+        output_shapes = ((settings.training.context_length * 2 + 1, 174, 9), (19, 6))  # noqa: E226
         train_dataset = VocalDatasetLoader(
-                ctx_len=settings.training.context_length,
-                feature_files=train_feat_files,
-                num_samples=settings.training.epoch * settings.training.batch_size * settings.training.steps
-            ) \
+            ctx_len=settings.training.context_length,
+            feature_files=train_feat_files,
+            num_samples=settings.training.epoch * settings.training.batch_size * settings.training.steps
+        ) \
             .get_dataset(settings.training.batch_size, output_types=output_types, output_shapes=output_shapes)
         val_dataset = VocalDatasetLoader(
-                ctx_len=settings.training.context_length,
-                feature_files=val_feat_files,
-                num_samples=settings.training.epoch * settings.training.val_batch_size * settings.training.val_steps
-            ) \
+            ctx_len=settings.training.context_length,
+            feature_files=val_feat_files,
+            num_samples=settings.training.epoch * settings.training.val_batch_size * settings.training.val_steps
+        ) \
             .get_dataset(settings.training.val_batch_size, output_types=output_types, output_shapes=output_shapes)
         if semi_feature_folder is not None:
             # Semi-supervise learning dataset.
             feat_files = glob.glob(f"{semi_feature_folder}/*.hdf")
             semi_dataset = VocalDatasetLoader(
-                    ctx_len=settings.training.context_length,
-                    feature_files=feat_files,
-                    num_samples=settings.training.epoch * settings.training.batch_size * settings.training.steps
-                ) \
+                ctx_len=settings.training.context_length,
+                feature_files=feat_files,
+                num_samples=settings.training.epoch * settings.training.batch_size * settings.training.steps
+            ) \
                 .get_dataset(settings.training.batch_size, output_types=output_types, output_shapes=output_shapes)
             train_dataset = tf.data.Dataset.zip((train_dataset, semi_dataset))
 
@@ -392,7 +397,7 @@ def _all_in_one_extract(data_pair, label_extractor, t_unit, **feat_kargs):
 
 
 def _parallel_feature_extraction(
-    data_pair, label_extractor, out_path, feat_settings, num_threads=4
+        data_pair, label_extractor, out_path, feat_settings, num_threads=4
 ):
     feat_extract_params = {
         "hop": feat_settings.hop_size,
@@ -438,6 +443,7 @@ class VocalDatasetLoader(BaseDatasetLoader):
     Defines an additional parameter 'ctx_len' to determine the context length
     of the input feature with repect to the current timestamp.
     """
+
     def __init__(self, ctx_len=9, feature_folder=None, feature_files=None, num_samples=100, slice_hop=1):
         super().__init__(
             feature_folder=feature_folder,
