@@ -6,11 +6,12 @@ def add_common_options(options):
         for option in reversed(options):
             func = option(func)
         return func
+
     return add_options
 
 
 COMMON_TRANSCRIBE_OPTIONS = [
-    click.argument("input_audio", type=click.Path(exists=True)),
+    click.option("-i", "--input_audio", type=click.Path(exists=True), default=None),
     click.option(
         "-m",
         "--model-path",
@@ -19,13 +20,16 @@ COMMON_TRANSCRIBE_OPTIONS = [
     click.option(
         "-o",
         "--output",
-        help="Path to output the prediction file (could be MIDI, CSV, ..., etc.)",
+        help="Path to output the prediction file (could be MIDI, CSV, ..., etc.). This is an output path, it does not "
+             "have to be the concrete file!",
         default="./",
         show_default=True,
         type=click.Path(writable=True)
+    ),
+    click.option(
+        "-id", "--input_directory", type=click.Path(writable=True), default=None
     )
 ]
-
 
 COMMON_GEN_FEATURE_OPTIONS = [
     click.option(
@@ -50,7 +54,6 @@ COMMON_GEN_FEATURE_OPTIONS = [
         show_default=True
     )
 ]
-
 
 COMMON_TRAIN_MODEL_OPTIONS = [
     click.option(
