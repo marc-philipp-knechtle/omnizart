@@ -100,7 +100,7 @@ class VocalContourTranscription(BaseTranscription):
         interpolation tries to estimate the values between known datapoints
         This tries to mimic the "singing" nature of the vocal parts
         """
-        wav = sonify.pitch_contour(
+        wav: np.ndarray = sonify.pitch_contour(
             timestamp, f0, model_settings.feature.sampling_rate, amplitudes=0.5 * np.ones(len(f0))
         )
 
